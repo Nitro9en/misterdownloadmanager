@@ -14,7 +14,7 @@ folder; misterdownloadmanager.com uses it as it is, and the other sites carry a 
 | `check-kit.mjs` | checks a copy against its `kit.json` (node, no dependencies) |
 
 Size, minified and gzipped: the three scripts 9.7 KB together (core 1.7, modal 1.3, lightbox
-7.5), the stylesheet 2.0 KB, about 11.7 KB in all; served as written, with no build step, about
+7.5), the stylesheet 2.1 KB, about 11.9 KB in all; served as written, with no build step, about
 17 KB gzipped.
 
 ## Use
