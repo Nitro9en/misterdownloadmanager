@@ -1,0 +1,78 @@
+# Fork-only: build the Windows x64 installer from THIS repository's source, so nothing from the
+# upstream project's prebuilt release binaries has to be trusted. Manual run only; publishes
+# nothing, uses no secrets (so the build is unsigned), and prints a SHA-256 for every file.
+name: Self-build Windows x64
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run cargo test first (about 45 minutes more)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Geo data (committed copy is used if this fails)
+        shell: pwsh
+        continue-on-error: true
+        run: python tools/geo/build.py --release
+
+      - name: Toolchain
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add x86_64-pc-windows-msvc
+
+      - name: NASM
+        shell: pwsh
+        run: |
+          choco install nasm --version 2.16.3 --no-progress -y
+          "C:\Program Files\NASM" >> $env:GITHUB_PATH
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+
+      - name: Tests
+        if: ${{ inputs.run_tests }}
+        run: cargo test --workspace --target x86_64-pc-windows-msvc
+
+      - name: Installer and portable zip (unsigned)
+        shell: pwsh
+        run: ./tools/installer/build.ps1 -Arch x64
+
+      - name: Smoke test
+        run: python tools/installer/smoke.py target/x86_64-pc-windows-msvc/release x64
+
+      - name: SHA-256 of every file
+        shell: pwsh
+        run: |
+          Get-ChildItem target/dist -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Tee-Object -FilePath target/dist/SHA256SUMS-selfbuild.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-x64-selfbuild
+          path: target/dist/*
+          retention-days: 14
