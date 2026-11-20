@@ -15,7 +15,7 @@
 // element and a heading measured before, during and after) and the page never scrolls sideways;
 // modals open, stack, close by Escape, backdrop and button (or only the button when told), give
 // the focus back and share the lock with the lightbox.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -24,6 +24,24 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const [k, v] = a.replace(/^--/, "").split("="); return [k, v ?? true]; }));
+// The static server runs in a process of its own (`--serve=<clip>`): sharing one with the browsers'
+// driver, it was sometimes too slow to take a connection under load and a page timed out.
+if (args.serve) {
+  const clipFile = String(args.serve);
+  const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".webp": "image/webp", ".png": "image/png", ".webm": "video/webm", ".svg": "image/svg+xml" };
+  const srv = http.createServer((req, res) => {
+    const url = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    const file = url === "/kit-test-clip.webm" ? clipFile : path.join(ROOT, url);
+    if (!file.startsWith(ROOT) && file !== clipFile) { res.writeHead(403).end(); return; }
+    fs.readFile(file, (err, data) => {
+      if (err) { res.writeHead(404, { "content-type": "text/html" }).end("<!doctype html><title>Not here</title><p>404"); return; }
+      res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream" }).end(data);
+    });
+  });
+  srv.listen(0, "127.0.0.1", () => console.log(srv.address().port));
+  process.stdin.on("end", () => process.exit(0));
+  process.stdin.resume();
+} else {
 const PW = process.env.PLAYWRIGHT_DIR;
 if (!PW) { console.error("Set PLAYWRIGHT_DIR to a playwright package folder (see the top of this file)."); process.exit(2); }
 const pw = await import(pathToFileURL(path.join(PW, "index.mjs")).href);
@@ -31,23 +49,14 @@ const browsers = (args.browsers || "chromium,firefox").split(",");
 const shots = args.shots ? path.resolve(args.shots) : null;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 
-// ---- A static server over the repository, and the clip -----------------------------------------
+// ---- A static server over the repository (its own process), and the clip ------------------------
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kit-e2e-"));
 const clip = path.join(tmp, "clip.webm");
 const ff = spawnSync("ffmpeg", ["-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25", "-t", "2", "-c:v", "libvpx", "-b:v", "300k", clip]);
 const haveClip = ff.status === 0 && fs.existsSync(clip);
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".webp": "image/webp", ".png": "image/png", ".webm": "video/webm", ".svg": "image/svg+xml" };
-const server = http.createServer((req, res) => {
-  const url = decodeURIComponent(new URL(req.url, "http://x").pathname);
-  const file = url === "/kit-test-clip.webm" ? clip : path.join(ROOT, url);
-  if (!file.startsWith(ROOT) && file !== clip) { res.writeHead(403).end(); return; }
-  fs.readFile(file, (err, data) => {
-    if (err) { res.writeHead(404, { "content-type": "text/html" }).end("<!doctype html><title>Not here</title><p>404"); return; }
-    res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream" }).end(data);
-  });
-});
-await new Promise((r) => server.listen(0, "127.0.0.1", r));
-const BASE = `http://127.0.0.1:${server.address().port}/tools/website/kit-test/demo.html`;
+const server = spawn(process.execPath, [fileURLToPath(import.meta.url), `--serve=${clip}`], { stdio: ["pipe", "pipe", "inherit"] });
+const port = await new Promise((r) => server.stdout.once("data", (d) => r(String(d).trim())));
+const BASE = `http://127.0.0.1:${port}/tools/website/kit-test/demo.html`;
 
 // ---- Checks ----------------------------------------------------------------------------------
 let failed = 0;
@@ -421,9 +430,11 @@ function fwd(rtl) { return rtl ? "ArrowLeft" : "ArrowRight"; }
 try {
   for (const b of browsers) await run(b);
 } finally {
-  server.close();
+  server.stdin.end();
+  server.kill();
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 for (const r of rows) if (r[0] !== "ok" || args.verbose) console.log(r.join("  "));
 console.log(`${rows.length - failed} of ${rows.length} checks passed${haveClip ? "" : " (no ffmpeg: the video case was skipped)"}`);
 process.exit(failed ? 1 : 0);
+}
