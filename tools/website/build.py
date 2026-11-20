@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import barcode  # noqa: E402
 import contributors  # noqa: E402  (tools/contributors.py: the people the site thanks)
+import kit  # noqa: E402  (tools/website/kit.py: the lightbox and dialogs, website/kit/)
 import sitei18n  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -627,8 +628,12 @@ def head(path: str, title: str, desc: str, *, jsonld: list | None = None, og_typ
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="alternate" type="application/atom+xml" title="{NAME} news" href="/news.xml">
+  <link rel="stylesheet" href="/kit/kit.css">
   <link rel="stylesheet" href="/styles.css">
   {THEME_SCRIPT}
+  <script src="/kit/core.js" defer></script>
+  <script src="/kit/modal.js" defer></script>
+  <script src="/kit/lightbox.js" defer></script>
   <script src="/main.js" defer></script>{ld}{extra}"""
 
 
@@ -825,11 +830,13 @@ def dark_of(name: str) -> str | None:
 IMG = re.compile(r'<img\b([^>]*?)\s*/?>')
 
 
-def shot_html(attrs: str, lazy: bool) -> str:
+def shot_html(attrs: str, lazy: bool, link: bool = False) -> str:
     """A help picture as the page shows it: its real size (width and height, so nothing moves as
     it loads), lazy below the first one, and its night version beside it, the site's theme
     choosing which shows (.for-light / .for-dark, as on the home page: they follow the system's
-    choice and the header's switch alike; a hidden lazy picture isn't fetched)."""
+    choice and the header's switch alike; a hidden lazy picture isn't fetched). A figure's picture
+    (`link`) is a link to its file, so it opens big with no script as well; the lightbox (website/
+    kit/) opens it over the page instead."""
     a = dict(re.findall(r'(\w[\w-]*)="([^"]*)"', attrs))
     src = a.get("src", "")
     m = re.match(r"/help/images/([\w./-]+)$", src)
@@ -841,12 +848,18 @@ def shot_html(attrs: str, lazy: bool) -> str:
     alt = a.get("alt", "")
     load = ' loading="lazy" decoding="async"' if lazy else ' decoding="async"'
     dark = dark_of(name)
+
+    def one(cls: str, url: str, d: str, ld: str) -> str:
+        """One picture; in a link, the theme's class goes on the link."""
+        own = f' class="{cls}"' if cls and not link else ""
+        img = f'<img{own} src="{url}"{d} alt="{alt}"{ld}>'
+        return f'<a class="{("shot-link " + cls).strip()}" href="{url}">{img}</a>' if link else img
     if not dark:
-        return f'<img src="{src}"{dims} alt="{alt}"{load}>'
+        return one("", src, dims, load)
     dsize = image_size(ROOT / "docs" / "images" / dark)
     ddims = f' width="{dsize[0]}" height="{dsize[1]}"' if dsize else dims
-    return (f'<img class="for-light" src="{src}"{dims} alt="{alt}"{load}>'
-            f'<img class="for-dark" src="/help/images/{dark}"{ddims} alt="{alt}" loading="lazy" decoding="async">')
+    return (one("for-light", src, dims, load)
+            + one("for-dark", f"/help/images/{dark}", ddims, ' loading="lazy" decoding="async"'))
 
 
 def help_figures(body: str) -> str:
@@ -863,9 +876,9 @@ def help_figures(body: str) -> str:
     its night version."""
     seen = [0]
 
-    def pic(attrs: str) -> str:
+    def pic(attrs: str, link: bool = False) -> str:
         seen[0] += 1
-        return shot_html(attrs, lazy=seen[0] > 1)
+        return shot_html(attrs, lazy=seen[0] > 1, link=link)
 
     def figure(inner: str, cls: str = "shot") -> str | None:
         m = re.fullmatch(r"\s*(?:<p>)?\s*<img\b([^>]*?)\s*/?>\s*(?:<br\s*/?>)?\s*(?:<em>((?:(?!</?p>).)*?)</em>)?\s*(?:</p>)?\s*", inner, re.S)
@@ -874,8 +887,8 @@ def help_figures(body: str) -> str:
         cap = f"<figcaption>{m.group(2).strip()}</figcaption>" if m.group(2) else ""
         # A step reads what to do, then shows it.
         if cls == "step":
-            return f'<figure class="{cls}">{cap}{pic(m.group(1))}</figure>'
-        return f'<figure class="{cls}">{pic(m.group(1))}{cap}</figure>'
+            return f'<figure class="{cls}">{cap}{pic(m.group(1), link=True)}</figure>'
+        return f'<figure class="{cls}">{pic(m.group(1), link=True)}{cap}</figure>'
 
     def strip(m: re.Match) -> str:
         """A step strip (<!-- steps --> and a numbered list) or pictures side by side
@@ -1907,7 +1920,10 @@ def copy_static() -> None:
     for item in WEB.iterdir():
         if item.name in ("content",) or item.suffix == ".html":
             continue
-        if item.is_dir():
+        if item.name == "kit":
+            # The site kit's scripts and stylesheet; its README, kit.json and check stay home.
+            shutil.copytree(item, OUT / item.name, ignore=shutil.ignore_patterns("*.md", "*.json", "*.mjs"))
+        elif item.is_dir():
             shutil.copytree(item, OUT / item.name)
         else:
             shutil.copy2(item, OUT / item.name)
@@ -1927,11 +1943,11 @@ def copy_static() -> None:
 
 
 def bust_caches() -> None:
-    """Every page asks for /styles.css, /main.js and /bench.js by their content hash, so a
-    browser never pairs a new page with an old cached stylesheet."""
+    """Every page asks for /styles.css, /main.js, /bench.js and the kit's files by their content
+    hash, so a browser never pairs a new page with an old cached stylesheet."""
     import hashlib
     tags = {}
-    for name in ("styles.css", "main.js", "bench.js"):
+    for name in ("styles.css", "main.js", "bench.js") + tuple(f"kit/{n}" for n in kit.FILES):
         tags[name] = hashlib.sha256((OUT / name).read_bytes()).hexdigest()[:10]
     for page in OUT.rglob("*.html"):
         text = page.read_text("utf-8")
@@ -1950,6 +1966,12 @@ def finish(available: dict[str, list[str]]) -> None:
 
 
 def main() -> None:
+    # The lightbox and dialogs (website/kit/) are the master copy other sites sync from: a file
+    # changed without a new version and kit.json is refused here.
+    bad = kit.problems(kit.KIT)
+    if bad:
+        sys.exit("website/kit/ doesn't match kit.json (bump VERSION in tools/website/kit.py, then run "
+                 "`python tools/website/kit.py stamp`):\n  " + "\n  ".join(bad))
     STATS.update(repo_stats())
     load_crew()
     copy_static()
