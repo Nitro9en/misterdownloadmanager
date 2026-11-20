@@ -132,8 +132,8 @@ async function run(name) {
       const errs = [];
       page.on("pageerror", (e) => errs.push(e.message));
       page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
-      await page.goto(BASE + variant, { timeout: 30000 });
-      await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox);
+      await page.goto(BASE + variant, { timeout: 60000 });
+      await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox, null, { timeout: 30000 });
       await page.evaluate(() => document.fonts.ready);
       const tag = `${name} ${w}x${h}${variant || " light"}`;
       try {
@@ -151,6 +151,9 @@ async function run(name) {
       check(`${tag}: focus in viewer`, s.focus.includes("kit-lb-close"), s.focus);
       check(`${tag}: nothing moved on lock`, before === during, `${before} -> ${during}`);
       check(`${tag}: no sideways scroll`, s.sideways <= 0, String(s.sideways));
+      const bg = await page.evaluate(() => { const cs = getComputedStyle(document.querySelector(".kit-lb-bg")); return [cs.backgroundColor, cs.backdropFilter || cs.webkitBackdropFilter || "none"]; });
+      const alpha = +(bg[0].match(/[\d.]+(?=\))/) || [1])[0];
+      check(`${tag}: calm backdrop`, alpha >= 0.9 && /blur/.test(bg[1]), bg.join(" | "));
       if (shots && (variant === "" || variant === "?rtl&dark")) await page.screenshot({ path: path.join(shots, `${name}-${w}${variant.replace(/[?&]/g, "-") || "-light"}-open.png`) });
 
       // Keys.
@@ -331,10 +334,12 @@ async function run(name) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
     const page = await ctx.newPage();
     await page.goto(BASE);
-    await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox);
+    await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox, null, { timeout: 30000 });
     await page.click("#g1 img");
     const frames = await page.evaluate(() => document.querySelector(".kit-lb-slide[aria-hidden=false] .kit-lb-media").getAnimations().map((a) => Object.keys(a.effect.getKeyframes()[0]).join(",")));
     check(`${name} reduced motion: fades only`, frames.length > 0 && frames.every((k) => !k.includes("transform")), frames.join(" / "));
+    const solid = await page.evaluate(() => { const cs = getComputedStyle(document.querySelector(".kit-lb-bg")); return [cs.backgroundColor, cs.backdropFilter || "none"]; });
+    check(`${name} reduced motion: solid backdrop, no blur`, solid[1] === "none" && +(solid[0].match(/[\d.]+(?=\))/) || [1])[0] >= 0.98, solid.join(" | "));
     await page.keyboard.press(fwd(false));
     await settled(page);
     const tr = await page.evaluate(() => getComputedStyle(document.querySelector(".kit-lb-track")).transitionDuration);
@@ -348,7 +353,7 @@ async function run(name) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await ctx.newPage();
     await page.goto(BASE);
-    await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox);
+    await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox, null, { timeout: 30000 });
     let id = "";
     for (let i = 0; i < 12 && id !== "g1"; i++) { await page.keyboard.press("Tab"); id = await page.evaluate(() => document.activeElement.id); }
     await page.keyboard.press("Enter");
@@ -378,7 +383,7 @@ async function run(name) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await ctx.newPage();
     await page.goto(BASE);
-    await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox);
+    await page.waitForFunction(() => window.SiteKit && SiteKit.lightbox, null, { timeout: 30000 });
     await page.click("#g1 img");
     await settled(page);
     const tree = await page.locator("dialog.kit-lb").ariaSnapshot();

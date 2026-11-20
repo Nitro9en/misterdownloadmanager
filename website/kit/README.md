@@ -1,4 +1,4 @@
-# SiteKit 1.0.1
+# SiteKit 1.0.2
 
 A lightbox, modals and the few helpers they share, written for this project's websites with no
 third-party code: plain scripts and one stylesheet, no build step, no CDN. The master copy is this
@@ -70,7 +70,8 @@ later; clicks are caught on the document, so they open anyway).
   http or https (a relative path is the page's own); a `javascript:`, `data:` or `blob:` one is
   ignored and the thumbnail's own picture opens instead.
 
-Versions: 1.0.1, sources only over http and https; 1.0.0, the first.
+Versions: 1.0.2, a calm backdrop (nearly opaque, the page blurred behind it); 1.0.1, sources
+only over http and https; 1.0.0, the first.
 
 What it does: flies the picture from its thumbnail (cropped `object-fit` thumbnails too) and back;
 arrows, swipe, ←/→ (mirrored right to left), Home, End, Escape, + − 0; double-click or double-tap
@@ -113,7 +114,8 @@ Set these on `:root` (and again for a dark theme) in the site's own stylesheet, 
 | `--kit-dur`, `--kit-dur-out`, `--kit-dur-fast` | 320ms, 260ms, 160ms |
 | `--kit-ease` | cubic-bezier(.16, 1, .3, 1) |
 | `--kit-font`, `--kit-focus` | inherit, #7fb0ff |
-| `--kit-lb-scrim`, `--kit-lb-fg`, `--kit-lb-fg-2` | near-black at 96%, near-white, at 70% |
+| `--kit-lb-scrim`, `--kit-lb-scrim-solid`, `--kit-lb-blur` | near-black at 93% over a 20px blur of the page; at 98.5% where there is no blur (no `backdrop-filter`, reduced transparency or reduced motion) |
+| `--kit-lb-fg`, `--kit-lb-fg-2` | near-white, at 70% |
 | `--kit-lb-btn`, `--kit-lb-btn-hover`, `--kit-lb-btn-fg`, `--kit-lb-btn-size`, `--kit-lb-btn-radius` | white at 10%, 20%, the foreground, 44px, round |
 | `--kit-lb-media-radius`, `--kit-lb-media-shadow`, `--kit-lb-cap-size` | 4px, none, 15px |
 | `--kit-modal-bg`, `--kit-modal-fg`, `--kit-modal-radius`, `--kit-modal-shadow`, `--kit-modal-scrim`, `--kit-modal-shift` | Canvas, CanvasText, 12px, a soft drop, black at 50%, 12px |
