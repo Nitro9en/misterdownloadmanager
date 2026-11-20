@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 KIT = ROOT / "website" / "kit"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 FILES = ["core.js", "modal.js", "lightbox.js", "kit.css"]
 HEADER = re.compile(r"^/\*! SiteKit (\d+\.\d+\.\d+) \| synced from anefzaoui/misterdownloadmanager website/kit/ \| MIT License \*/$")
 

@@ -265,7 +265,7 @@ async function run(name) {
       await page.click("#p1");
       await settled(page);
       s = await state(page);
-      check(`${tag}: article group`, s.count === "1 / 2" && s.cap.startsWith("Progress"), `${s.count} | ${s.cap}`);
+      check(`${tag}: article group`, s.count === "1 / 4" && s.cap.startsWith("Progress"), `${s.count} | ${s.cap}`);
       await page.keyboard.press("Escape");
       await settled(page);
       s = await state(page);
@@ -384,7 +384,19 @@ async function run(name) {
     const tree = await page.locator("dialog.kit-lb").ariaSnapshot();
     check(`${name} accessibility tree`, /dialog "Image viewer"/.test(tree) && /button "Close"/.test(tree) && /button "Next image"/.test(tree) && /status: 1 of 5/.test(tree), tree.replace(/\n/g, " ⏎ "));
     const pageTree = await page.evaluate(() => [...document.querySelectorAll("#prose img[role=button]")].map((i) => i.id).join());
-    check(`${name} bare pictures are buttons`, pageTree === "p1,p2", pageTree);
+    check(`${name} bare pictures are buttons`, pageTree === "p1,p2,p5", pageTree);
+    await page.keyboard.press("Escape");
+    await settled(page);
+    // A javascript: or data: source in the markup is refused: the thumbnail's own picture opens.
+    for (const id of ["p5", "p6"]) {
+      await page.click("#" + id);
+      await settled(page);
+      const src = await page.evaluate(() => { const m = document.querySelector(".kit-lb-slide[aria-hidden=false] .kit-lb-media"); return m ? m.currentSrc || m.src : ""; });
+      const thumb = await page.evaluate((id) => document.getElementById(id).currentSrc, id);
+      check(`${name} unsafe source refused (${id})`, src === thumb && /^http:/.test(src) && !(await page.evaluate(() => window.KIT_PWNED)), src);
+      await page.keyboard.press("Escape");
+      await settled(page);
+    }
     await ctx.close();
   }
 

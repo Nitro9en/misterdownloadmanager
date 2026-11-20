@@ -1,4 +1,4 @@
-# SiteKit 1.0.0
+# SiteKit 1.0.1
 
 A lightbox, modals and the few helpers they share, written for this project's websites with no
 third-party code: plain scripts and one stylesheet, no build step, no CDN. The master copy is this
@@ -66,6 +66,11 @@ later; clicks are caught on the document, so they open anyway).
 - Video: a link to an `.mp4`, `.webm`, `.ogv`, `.mov` or `.m4v` (or `data-type="video"`), its
   `<img>` the poster. It plays when shown and pauses when left.
 - Caption: `data-caption`, else `caption(img)`, else the `figcaption`, else the `alt`.
+- Sources (`href`, `data-full`, a video's address, every `srcset` candidate) are used only over
+  http or https (a relative path is the page's own); a `javascript:`, `data:` or `blob:` one is
+  ignored and the thumbnail's own picture opens instead.
+
+Versions: 1.0.1, sources only over http and https; 1.0.0, the first.
 
 What it does: flies the picture from its thumbnail (cropped `object-fit` thumbnails too) and back;
 arrows, swipe, ←/→ (mirrored right to left), Home, End, Escape, + − 0; double-click or double-tap
