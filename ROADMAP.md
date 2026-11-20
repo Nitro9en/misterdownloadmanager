@@ -578,6 +578,11 @@ These ship in the next version.
   **Check for updates**, **Update** and **Go back to** the previous version, and a switch to turn
   it off; the command line has `update-helpers`
   ([#1544](https://github.com/anefzaoui/misterdownloadmanager/issues/1544))
+- ✅ 7z and RAR archives are extracted with the 7-Zip another archiver brings: PeaZip's and
+  NanaZip's command line are found by themselves on Windows, and **Options → Archives → Use
+  another program...** takes any other 7-Zip command line program (a portable copy), checked
+  before it is used
+  ([#1525](https://github.com/anefzaoui/misterdownloadmanager/issues/1525))
 - ✅ The proxy reaches yt-dlp: Options' automatic configuration script is asked about the
   video's page for every yt-dlp run, "Use system settings" follows Windows' setup script (a
   proxy program's PAC mode), and a manual proxy chosen with no protocol ticked gets http and
